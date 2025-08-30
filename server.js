@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 8080;
 app.use(express.static('public'));
 
 // --- Rooms state ---
-const rooms = {};  // roomId => { players: {...}, roundTimer, roundInterval }
+const rooms = {}; // roomId => { players: {...}, roundTimer, roundInterval }
 
 // Helper to pick random loser
 function pickLoser(players) {
@@ -24,6 +24,12 @@ function pickLoser(players) {
 function startRound(roomId) {
   const room = rooms[roomId];
   if (!room) return;
+
+  const playerCount = Object.keys(room.players).length;
+  if (playerCount < 2) {
+    io.to(roomId).emit('warning', 'Not enough players to start the round (minimum 2 required).');
+    return;
+  }
 
   let timeLeft = room.roundTimer;
   room.roundInterval = setInterval(() => {
@@ -40,7 +46,6 @@ function startRound(roomId) {
       const loserBet = players[loserId].currentBet;
       players[loserId].balance -= loserBet;
 
-      // Compute winners’ shares
       const totalOthersBet = pot - loserBet;
       for (let [id, p] of Object.entries(players)) {
         if (id !== loserId) {
@@ -53,13 +58,9 @@ function startRound(roomId) {
         p.currentBet = 0; // reset for next round
       }
 
-      io.to(roomId).emit('roundResult', {
-        loser: loserId,
-        players: players
-      });
+      io.to(roomId).emit('playersUpdate', players);
 
-      // Start next round
-      startRound(roomId);
+      startRound(roomId); // start next round
     }
   }, 1000);
 }
@@ -68,29 +69,34 @@ function startRound(roomId) {
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
+  // Join room
   socket.on('joinRoom', ({ roomId, name }) => {
     socket.join(roomId);
     if (!rooms[roomId]) rooms[roomId] = { players: {}, roundTimer: 10 };
 
-    rooms[roomId].players[socket.id] = { 
-      name, balance: 0, currentBet: 0, lastResult: null 
+    rooms[roomId].players[socket.id] = {
+      name,
+      balance: 0,
+      currentBet: 0,
+      lastResult: null
     };
 
     io.to(roomId).emit('playersUpdate', rooms[roomId].players);
 
+    // Start round if enough players
     if (Object.keys(rooms[roomId].players).length >= 2 && !rooms[roomId].roundInterval) {
       startRound(roomId);
     }
   });
 
-  // Update bet
+  // Set bet
   socket.on('setBet', ({ roomId, bet }) => {
     const room = rooms[roomId];
     if (!room || !room.players[socket.id]) return;
     room.players[socket.id].currentBet = bet;
   });
 
-  // Update player name
+  // Set player name
   socket.on('setName', ({ roomId, name }) => {
     const room = rooms[roomId];
     if (!room || !room.players[socket.id]) return;
@@ -98,11 +104,11 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('playersUpdate', room.players);
   });
 
-  // Update room timer (for silliness)
+  // Set timer (frontend-configurable)
   socket.on('setTimer', ({ roomId, timer }) => {
     const room = rooms[roomId];
     if (!room) return;
-    room.roundTimer = Math.max(1, Math.min(timer, 60)); // clamp 1-60
+    room.roundTimer = Math.max(1, Math.min(timer, 60));
   });
 
   // Disconnect
