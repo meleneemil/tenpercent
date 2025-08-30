@@ -7,6 +7,8 @@
   <style>
     .win { color: green; }
     .loss { color: red; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #aaa; padding: 4px 8px; text-align: center; }
   </style>
 </head>
 <body>
@@ -22,11 +24,21 @@
   <label>Round Timer (seconds): <input type="number" min="1" max="60" value="10" id="timerInput"></label>
   <br><br>
 
+  <p id="warning" style="color: orange; font-weight: bold;"></p>
   <p>Timer: <span id="timer">10</span></p>
+
   <h2>Players</h2>
-  <ul id="players"></ul>
-  <h2>Last Round</h2>
-  <pre id="roundResult"></pre>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Balance</th>
+        <th>Last Bet</th>
+        <th>Last Round Gain/Loss</th>
+      </tr>
+    </thead>
+    <tbody id="playersBody"></tbody>
+  </table>
 
   <script>
     const socket = io();
@@ -36,7 +48,7 @@
     // Join room
     socket.emit('joinRoom', { roomId, name });
 
-    // Player name input
+    // Name input
     const nameInput = document.getElementById('nameInput');
     nameInput.value = name;
     nameInput.addEventListener('input', () => {
@@ -59,30 +71,41 @@
       socket.emit('setTimer', { roomId, timer: val });
     });
 
-    // Update timer
-    socket.on('timer', t => document.getElementById('timer').textContent = t);
-
-    // Update players list
-    socket.on('playersUpdate', players => {
-      const ul = document.getElementById('players');
-      ul.innerHTML = '';
-      for (const [id, p] of Object.entries(players)) {
-        const li = document.createElement('li');
-        let last = '';
-        if(p.lastResult) {
-          const cls = p.lastResult.win ? 'win' : 'loss';
-          last = ` | Last: <span class="${cls}">${p.lastResult.amount >= 0 ? '+' : ''}${p.lastResult.amount} (Bet: ${p.lastResult.lastBet})</span>`;
-        }
-        li.innerHTML = `${p.name}: $${p.balance}${last}`;
-        ul.appendChild(li);
-      }
+    // Warnings
+    socket.on('warning', msg => {
+      document.getElementById('warning').textContent = msg;
     });
 
-    // Round results
-    socket.on('roundResult', data => {
-      document.getElementById('roundResult').textContent =
-        `Loser: ${data.loser}\n` +
-        JSON.stringify(data.players, null, 2);
+    // Timer update
+    socket.on('timer', t => {
+      document.getElementById('timer').textContent = t;
+      document.getElementById('warning').textContent = ''; // clear warning when round starts
+    });
+
+    // Update players table
+    socket.on('playersUpdate', players => {
+      const tbody = document.getElementById('playersBody');
+      tbody.innerHTML = '';
+      for (const [id, p] of Object.entries(players)) {
+        const tr = document.createElement('tr');
+        const gainCell = document.createElement('td');
+        if(p.lastResult) {
+          gainCell.textContent = (p.lastResult.amount >= 0 ? '+' : '') + p.lastResult.amount;
+          gainCell.className = p.lastResult.win ? 'win' : 'loss';
+        } else {
+          gainCell.textContent = '-';
+        }
+
+        const lastBetCell = document.createElement('td');
+        lastBetCell.textContent = p.lastResult ? p.lastResult.lastBet : '-';
+
+        tr.innerHTML = `<td>${p.name}</td>
+                        <td>${p.balance}</td>`;
+        tr.appendChild(lastBetCell);
+        tr.appendChild(gainCell);
+
+        tbody.appendChild(tr);
+      }
     });
   </script>
 </body>
