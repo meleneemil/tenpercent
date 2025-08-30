@@ -2,13 +2,13 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-app.use(express.static('public'));
+app.use((req, res, next) => {
+  console.log(`Captain's log: ${req.method} ${req.url}`);
+  next(); // pass control to static server or other routes
+});
 
-//redundant, since we use the public folder
-// app.get('/', (req, res) => {
-//   res.send('Hello from my OpenShift Node.js app! ROOT DIR');
-//   console.log(`Captain's log: new / connection!`);
-// });
+//this is the static server
+app.use(express.static('public'));
 
 app.get('/hello', (req, res) => {
   res.send('Hello from OpenShift! HELLO DIR');
