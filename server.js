@@ -6,6 +6,7 @@ app.use(express.static('public'));
 
 app.get('/', (req, res) => {
   res.send('Hello from my OpenShift Node.js app! ROOT DIR');
+  console.log(`Captain's log: new / connection!`);
 });
 
 app.get('/hello', (req, res) => {
