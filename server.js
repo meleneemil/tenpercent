@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 8080;
 app.use(express.static('public'));
 
 // --- Rooms state ---
-const rooms = {};
+const rooms = {};  // roomId => { players: {...}, roundTimer, roundInterval }
 
 // Helper to pick random loser
 function pickLoser(players) {
@@ -33,22 +33,22 @@ function startRound(roomId) {
     if (timeLeft <= 0) {
       clearInterval(room.roundInterval);
 
-      // Collect bets
       const players = room.players;
-      let pot = 0;
-      for (let p of Object.values(players)) pot += p.currentBet;
+      const pot = Object.values(players).reduce((sum, p) => sum + p.currentBet, 0);
 
-      // Pick loser
       const loserId = pickLoser(players);
       const loserBet = players[loserId].currentBet;
       players[loserId].balance -= loserBet;
 
-      // Split loser’s bet among others proportionally
+      // Compute winners’ shares
       const totalOthersBet = pot - loserBet;
       for (let [id, p] of Object.entries(players)) {
         if (id !== loserId) {
-          const share = (p.currentBet / totalOthersBet) * loserBet;
+          const share = totalOthersBet > 0 ? (p.currentBet / totalOthersBet) * loserBet : 0;
           p.balance += p.currentBet + share;
+          p.lastResult = { win: true, amount: p.currentBet + share, lastBet: p.currentBet };
+        } else {
+          p.lastResult = { win: false, amount: -loserBet, lastBet: p.currentBet };
         }
         p.currentBet = 0; // reset for next round
       }
@@ -58,7 +58,7 @@ function startRound(roomId) {
         players: players
       });
 
-      // Start next round automatically
+      // Start next round
       startRound(roomId);
     }
   }, 1000);
@@ -68,24 +68,41 @@ function startRound(roomId) {
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  // Join a room
   socket.on('joinRoom', ({ roomId, name }) => {
     socket.join(roomId);
     if (!rooms[roomId]) rooms[roomId] = { players: {}, roundTimer: 10 };
-    rooms[roomId].players[socket.id] = { name, balance: 100, currentBet: 0 };
+
+    rooms[roomId].players[socket.id] = { 
+      name, balance: 0, currentBet: 0, lastResult: null 
+    };
+
     io.to(roomId).emit('playersUpdate', rooms[roomId].players);
 
-    // Start the round if first player
     if (Object.keys(rooms[roomId].players).length >= 2 && !rooms[roomId].roundInterval) {
       startRound(roomId);
     }
   });
 
-  // Receive bet updates
+  // Update bet
   socket.on('setBet', ({ roomId, bet }) => {
     const room = rooms[roomId];
     if (!room || !room.players[socket.id]) return;
     room.players[socket.id].currentBet = bet;
+  });
+
+  // Update player name
+  socket.on('setName', ({ roomId, name }) => {
+    const room = rooms[roomId];
+    if (!room || !room.players[socket.id]) return;
+    room.players[socket.id].name = name;
+    io.to(roomId).emit('playersUpdate', room.players);
+  });
+
+  // Update room timer (for silliness)
+  socket.on('setTimer', ({ roomId, timer }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    room.roundTimer = Math.max(1, Math.min(timer, 60)); // clamp 1-60
   });
 
   // Disconnect
@@ -97,4 +114,4 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`TenPercent server running on port ${PORT}`));
