@@ -5,48 +5,53 @@
   <title>TenPercent</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
+    body { font-family: sans-serif; padding: 10px; max-width: 480px; margin: auto; }
     .win { color: green; }
     .loss { color: red; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #aaa; padding: 4px 8px; text-align: center; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; word-wrap: break-word; }
+    th, td { border: 1px solid #aaa; padding: 4px 6px; text-align: center; }
+    input[type=range] { width: 100%; }
+    input[type=number], input[type=text] { width: 100%; box-sizing: border-box; margin-top: 2px; margin-bottom: 6px; }
   </style>
 </head>
 <body>
   <h1>TenPercent</h1>
 
-  <label>Player Name: <input type="text" id="nameInput"></label>
-  <br><br>
+  <label>Player Name:<br> <input type="text" id="nameInput"></label>
 
-  <label>Bet: <span id="betVal">5</span></label>
-  <input type="range" min="1" max="10" value="5" id="betSlider">
-  <br><br>
+  <label>Bet: <span id="betVal">5</span><br>
+  <input type="range" min="1" max="10" value="5" id="betSlider"></label>
 
-  <label>Round Timer (seconds): <input type="number" min="1" max="60" value="10" id="timerInput"></label>
-  <br><br>
+  <label>Round Timer (seconds):<br> <input type="number" min="1" max="60" value="10" id="timerInput"></label>
 
   <p id="warning" style="color: orange; font-weight: bold;"></p>
   <p>Timer: <span id="timer">10</span></p>
 
   <h2>Players</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Balance</th>
-        <th>Last Bet</th>
-        <th>Last Round Gain/Loss</th>
-      </tr>
-    </thead>
-    <tbody id="playersBody"></tbody>
-  </table>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Balance</th>
+          <th>Last Bet</th>
+          <th>Last Round Gain/Loss</th>
+        </tr>
+      </thead>
+      <tbody id="playersBody"></tbody>
+    </table>
+  </div>
 
   <script>
     const socket = io();
     const roomId = 'room1';
     let name = 'Player_' + Math.floor(Math.random()*1000);
 
-    // Join room
-    socket.emit('joinRoom', { roomId, name });
+    const slider = document.getElementById('betSlider');
+    const betVal = document.getElementById('betVal');
+
+    // Join room with initial slider value
+    socket.emit('joinRoom', { roomId, name, startingBet: parseInt(slider.value) });
 
     // Name input
     const nameInput = document.getElementById('nameInput');
@@ -57,8 +62,6 @@
     });
 
     // Bet slider
-    const slider = document.getElementById('betSlider');
-    const betVal = document.getElementById('betVal');
     slider.addEventListener('input', () => {
       betVal.textContent = slider.value;
       socket.emit('setBet', { roomId, bet: parseInt(slider.value) });
@@ -79,15 +82,16 @@
     // Timer update
     socket.on('timer', t => {
       document.getElementById('timer').textContent = t;
-      document.getElementById('warning').textContent = ''; // clear warning when round starts
+      document.getElementById('warning').textContent = '';
     });
 
-    // Update players table
+    // Players table update
     socket.on('playersUpdate', players => {
       const tbody = document.getElementById('playersBody');
       tbody.innerHTML = '';
       for (const [id, p] of Object.entries(players)) {
         const tr = document.createElement('tr');
+
         const gainCell = document.createElement('td');
         if(p.lastResult) {
           gainCell.textContent = (p.lastResult.amount >= 0 ? '+' : '') + p.lastResult.amount;
@@ -97,7 +101,7 @@
         }
 
         const lastBetCell = document.createElement('td');
-        lastBetCell.textContent = p.lastResult ? p.lastResult.lastBet : '-';
+        lastBetCell.textContent = p.lastResult ? p.lastResult.lastBet : p.currentBet;
 
         tr.innerHTML = `<td>${p.name}</td>
                         <td>${p.balance}</td>`;
