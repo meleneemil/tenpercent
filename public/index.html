@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Useless Game</title>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <h1>🔥 The Useless Game 🔥</h1>
+  <p>Click the button to increase the global score!</p>
+  <button id="btn">Click Me!</button>
+  <h2>Score: <span id="score">0</span></h2>
+
+  <script>
+    const socket = io();
+
+    // Handle score updates from server
+    socket.on('scoreUpdate', (newScore) => {
+      document.getElementById('score').textContent = newScore;
+    });
+
+    // Send increment event when button clicked
+    document.getElementById('btn').addEventListener('click', () => {
+      socket.emit('increment');
+    });
+  </script>
+</body>
+</html>
