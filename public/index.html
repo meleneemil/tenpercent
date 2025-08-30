@@ -2,26 +2,51 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Useless Game</title>
+  <title>Useless Multiplayer Game</title>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-  <h1>🔥 The Useless Game 🔥</h1>
-  <p>Click the button to increase the global score!</p>
-  <button id="btn">Click Me!</button>
-  <h2>Score: <span id="score">0</span></h2>
+  <h1>Useless Multiplayer Game</h1>
+  <label>Bet: <span id="betVal">5</span></label>
+  <input type="range" min="1" max="10" value="5" id="betSlider">
+  <p>Timer: <span id="timer">10</span></p>
+  <h2>Players</h2>
+  <ul id="players"></ul>
+  <h2>Last round</h2>
+  <pre id="roundResult"></pre>
 
   <script>
     const socket = io();
+    const roomId = 'room1';
+    const name = 'Player_' + Math.floor(Math.random()*1000);
 
-    // Handle score updates from server
-    socket.on('scoreUpdate', (newScore) => {
-      document.getElementById('score').textContent = newScore;
+    socket.emit('joinRoom', { roomId, name });
+
+    const slider = document.getElementById('betSlider');
+    const betVal = document.getElementById('betVal');
+    slider.addEventListener('input', () => {
+      betVal.textContent = slider.value;
+      socket.emit('setBet', { roomId, bet: parseInt(slider.value) });
     });
 
-    // Send increment event when button clicked
-    document.getElementById('btn').addEventListener('click', () => {
-      socket.emit('increment');
+    socket.on('timer', time => {
+      document.getElementById('timer').textContent = time;
+    });
+
+    socket.on('playersUpdate', players => {
+      const ul = document.getElementById('players');
+      ul.innerHTML = '';
+      for (const [id, p] of Object.entries(players)) {
+        const li = document.createElement('li');
+        li.textContent = `${p.name}: $${p.balance} (bet: ${p.currentBet})`;
+        ul.appendChild(li);
+      }
+    });
+
+    socket.on('roundResult', data => {
+      document.getElementById('roundResult').textContent =
+        `Loser: ${data.loser}\n` +
+        JSON.stringify(data.players, null, 2);
     });
   </script>
 </body>
