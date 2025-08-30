@@ -1,19 +1,39 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
 const PORT = process.env.PORT || 8080;
 
-app.use((req, res, next) => {
-  console.log(`Captain's log: ${req.method} ${req.url}`);
-  next(); // pass control to static server or other routes
-});
-
-//this is the static server
+// Serve frontend
 app.use(express.static('public'));
 
-app.get('/hello', (req, res) => {
-  res.send('Hello from OpenShift! HELLO DIR');
+// --- Useless game state ---
+let score = 0;
+
+// Handle socket.io connections
+io.on('connection', (socket) => {
+  console.log('A player connected');
+
+  // Send current score to the new player
+  socket.emit('scoreUpdate', score);
+
+  // When someone clicks the button
+  socket.on('increment', () => {
+    score++;
+    console.log(`Score is now ${score}`);
+    // broadcast updated score to all players
+    io.emit('scoreUpdate', score);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('A player disconnected');
+  });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Game server running on port ${PORT}`);
 });
