@@ -5,11 +5,11 @@ const PORT = process.env.PORT || 8080;
 app.use(express.static('public'));
 
 app.get('/', (req, res) => {
-  res.send('Hello from my OpenShift Node.js app!');
+  res.send('Hello from my OpenShift Node.js app! ROOT DIR');
 });
 
 app.get('/hello', (req, res) => {
-  res.send('Hello from OpenShift!');
+  res.send('Hello from OpenShift! HELLO DIR');
 });
 
 app.listen(PORT, () => {
