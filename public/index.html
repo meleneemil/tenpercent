@@ -2,26 +2,49 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Useless Multiplayer Game</title>
+  <title>TenPercent</title>
   <script src="/socket.io/socket.io.js"></script>
+  <style>
+    .win { color: green; }
+    .loss { color: red; }
+  </style>
 </head>
 <body>
-  <h1>Useless Multiplayer Game</h1>
+  <h1>TenPercent</h1>
+
+  <label>Player Name: <input type="text" id="nameInput"></label>
+  <br><br>
+
   <label>Bet: <span id="betVal">5</span></label>
   <input type="range" min="1" max="10" value="5" id="betSlider">
+  <br><br>
+
+  <label>Round Timer (seconds): <input type="number" min="1" max="60" value="10" id="timerInput"></label>
+  <br><br>
+
   <p>Timer: <span id="timer">10</span></p>
   <h2>Players</h2>
   <ul id="players"></ul>
-  <h2>Last round</h2>
+  <h2>Last Round</h2>
   <pre id="roundResult"></pre>
 
   <script>
     const socket = io();
     const roomId = 'room1';
-    const name = 'Player_' + Math.floor(Math.random()*1000);
+    let name = 'Player_' + Math.floor(Math.random()*1000);
 
+    // Join room
     socket.emit('joinRoom', { roomId, name });
 
+    // Player name input
+    const nameInput = document.getElementById('nameInput');
+    nameInput.value = name;
+    nameInput.addEventListener('input', () => {
+      name = nameInput.value;
+      socket.emit('setName', { roomId, name });
+    });
+
+    // Bet slider
     const slider = document.getElementById('betSlider');
     const betVal = document.getElementById('betVal');
     slider.addEventListener('input', () => {
@@ -29,20 +52,33 @@
       socket.emit('setBet', { roomId, bet: parseInt(slider.value) });
     });
 
-    socket.on('timer', time => {
-      document.getElementById('timer').textContent = time;
+    // Timer input
+    const timerInput = document.getElementById('timerInput');
+    timerInput.addEventListener('input', () => {
+      const val = parseInt(timerInput.value);
+      socket.emit('setTimer', { roomId, timer: val });
     });
 
+    // Update timer
+    socket.on('timer', t => document.getElementById('timer').textContent = t);
+
+    // Update players list
     socket.on('playersUpdate', players => {
       const ul = document.getElementById('players');
       ul.innerHTML = '';
       for (const [id, p] of Object.entries(players)) {
         const li = document.createElement('li');
-        li.textContent = `${p.name}: $${p.balance} (bet: ${p.currentBet})`;
+        let last = '';
+        if(p.lastResult) {
+          const cls = p.lastResult.win ? 'win' : 'loss';
+          last = ` | Last: <span class="${cls}">${p.lastResult.amount >= 0 ? '+' : ''}${p.lastResult.amount} (Bet: ${p.lastResult.lastBet})</span>`;
+        }
+        li.innerHTML = `${p.name}: $${p.balance}${last}`;
         ul.appendChild(li);
       }
     });
 
+    // Round results
     socket.on('roundResult', data => {
       document.getElementById('roundResult').textContent =
         `Loser: ${data.loser}\n` +
