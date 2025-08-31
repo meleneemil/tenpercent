@@ -1,33 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
   <title>TenPercent</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="/socket.io/socket.io.js"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root { --pad: 10px; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: var(--pad); }
-    h1 { margin: 0 0 8px; font-size: 22px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: var(--pad); margin-bottom: var(--pad); }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .col { flex: 1 1 160px; min-width: 160px; }
-    label { font-size: 14px; display: block; margin-bottom: 6px; }
-    input[type=text], input[type=number] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-    input[type=range] { width: 100%; }
-    .pill { display:inline-block; padding: 3px 8px; border-radius:999px; font-size:12px; border:1px solid #ddd; }
-    #warning { color: #b57400; font-weight: 600; min-height: 1.2em; }
-    #timer { font-weight: 700; }
-    .win { color: #0a8f00; font-weight: 600; }
-    .loss { color: #c40000; font-weight: 600; }
-    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-    th, td { border: 1px solid #e0e0e0; padding: 6px; text-align: center; font-size: 14px; }
-    thead th { position: sticky; top: 0; background: #fafafa; z-index: 1; }
-    .table-wrap { max-height: 50vh; overflow: auto; border: 1px solid #eaeaea; border-radius: 10px; }
-    @media (max-width: 480px) {
-      th, td { font-size: 13px; padding: 5px; }
-      h1 { font-size: 20px; }
+    :root { --pad: 10px; --card-bg: #fff; --muted: #666; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: var(--pad); background:#f7f7f8; }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    .card { background: var(--card-bg); border-radius: 10px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .col { flex: 1 1 160px; min-width: 140px; }
+    label { font-size:13px; color:#222; display:block; margin-bottom:6px; }
+    input[type=text], select, input[type=number] { width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; }
+    input[type=range] { width:100%; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid #ddd; font-size:13px; background:#fafafa; }
+    #warning { color:#b57400; min-height:1.2em; font-weight:600; margin-top:6px; }
+    table { border-collapse:collapse; width:100%; table-layout:fixed; font-size:13px; }
+    th, td { border:1px solid #eee; padding:6px; text-align:center; }
+    thead th { background:#fafafa; position: sticky; top:0; z-index:1; }
+    .win { color: #0a8f00; font-weight:700; }
+    .loss { color: #c40000; font-weight:700; }
+    .table-wrap { max-height: 42vh; overflow:auto; border-radius:8px; border:1px solid #eee; }
+    @media (max-width:480px) {
+      h1 { font-size:18px; }
+      .col { min-width: 120px; }
+      th, td { padding:5px; font-size:12px; }
     }
+    canvas { width:100%; height:160px; }
+    .muted { color: var(--muted); font-size:12px; }
   </style>
 </head>
 <body>
@@ -37,31 +41,33 @@
     <div class="row">
       <div class="col">
         <label>Player Name
-          <input type="text" id="nameInput" placeholder="Your name" />
+          <input id="nameInput" type="text" placeholder="Your name" />
         </label>
       </div>
+
       <div class="col">
         <label>Bet: <span class="pill" id="betVal">5</span>
-          <input type="range" min="1" max="10" value="5" id="betSlider">
+          <input id="betSlider" type="range" min="1" max="10" step="1" value="5" />
         </label>
+        <div class="muted">Declared bet used each round (secret)</div>
       </div>
+
       <div class="col">
-        <label>Round Timer (seconds)
-          <input type="number" min="0.1" max="60" step="0.1" value="10" id="timerInput">
+        <label>Round Timer
+          <select id="timerSelect"></select>
         </label>
+        <div class="muted">Server-controlled options</div>
       </div>
     </div>
 
-    <div class="row">
-      <div class="col">
-        <div>Timer: <span id="timer">10</span>s</div>
-        <div id="warning"></div>
-      </div>
+    <div style="margin-top:8px;">
+      <div>Timer: <span id="timer">-</span>s</div>
+      <div id="warning"></div>
     </div>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0;">Players</h3>
+    <h3 style="margin:0 0 8px;">Players</h3>
     <div class="table-wrap">
       <table>
         <thead>
@@ -70,6 +76,7 @@
             <th>Balance</th>
             <th>Last Bet</th>
             <th>Gain/Loss (last round)</th>
+            <th>Avg Others Bet</th>
           </tr>
         </thead>
         <tbody id="playersBody"></tbody>
@@ -77,88 +84,240 @@
     </div>
   </div>
 
-  <script>
-    const socket = io();
-    const roomId = 'room1';
+  <div class="card">
+    <h3 style="margin:0 0 8px;">Balance history (last 20 rounds)</h3>
+    <canvas id="balanceChart"></canvas>
+  </div>
 
-    // Controls
-    const nameInput = document.getElementById('nameInput');
-    const slider = document.getElementById('betSlider');
-    const betVal = document.getElementById('betVal');
-    const timerInput = document.getElementById('timerInput');
+<script>
+/* TenPercent client script
+   - keeps debug logs (as requested)
+   - subscribes to allowedTimers, playersUpdate, timer, roundResult
+   - draws Chart.js line plot of balances (last 20 rounds)
+*/
 
-    // Default random name
-    let name = 'Player_' + Math.floor(Math.random()*1000);
-    nameInput.value = name;
+const socket = io();
+const roomId = 'room1';
+const MAX_HISTORY = 20;
 
-    // Join with initial slider value as starting bet
-    socket.emit('joinRoom', { roomId, name, startingBet: parseInt(slider.value, 10) });
+// UI elements
+const nameInput = document.getElementById('nameInput');
+const slider = document.getElementById('betSlider');
+const betVal = document.getElementById('betVal');
+const timerSelect = document.getElementById('timerSelect');
+const warningEl = document.getElementById('warning');
+const timerEl = document.getElementById('timer');
+const playersBody = document.getElementById('playersBody');
 
-    // Name changes
-    nameInput.addEventListener('input', () => {
-      name = nameInput.value;
-      socket.emit('setName', { roomId, name });
-    });
+// chart setup
+const ctx = document.getElementById('balanceChart').getContext('2d');
+let balanceChart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: [], datasets: [] },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: true, position: 'bottom' } },
+    scales: { y: { beginAtZero: true } }
+  }
+});
 
-    // Bet changes
-    slider.addEventListener('input', () => {
-      const v = parseInt(slider.value, 10);
-      betVal.textContent = v;
-      socket.emit('setBet', { roomId, bet: v });
-    });
+// local state for chart & colors
+const balanceHistory = {}; // socketId -> [balances]
+const colorMap = {};       // socketId -> color string
+let roundLabels = [];      // array of round indices
 
-    // Timer changes
-    timerInput.addEventListener('input', () => {
-  const val = parseFloat(timerInput.value);
-  console.log(`[Client Debug] sending timer=${val}`);
-  socket.emit('setTimer', { roomId, timer: val });
+function randColorForId(id) {
+  // deterministic-ish color based on id string
+  let hash = 0;
+  for (let i=0;i<id.length;i++) hash = ((hash<<5)-hash) + id.charCodeAt(i);
+  const c = (hash & 0xFFFFFF) >>> 0;
+  return '#' + c.toString(16).padStart(6,'0');
+}
+
+function updatePlayersTable(players) {
+  playersBody.innerHTML = '';
+  Object.entries(players).forEach(([id, p]) => {
+    const tr = document.createElement('tr');
+
+    const nameTd = document.createElement('td');
+    nameTd.textContent = p.name;
+
+    const balTd = document.createElement('td');
+    balTd.textContent = Math.round((p.balance + Number.EPSILON) * 100) / 100;
+
+    const lastBetTd = document.createElement('td');
+    lastBetTd.textContent = p.lastResult ? p.lastResult.lastBet : (p.declaredBet ?? '-');
+
+    const deltaTd = document.createElement('td');
+    if (p.lastResult) {
+      const d = Math.round((p.lastResult.delta + Number.EPSILON) * 100) / 100;
+      deltaTd.textContent = (d >= 0 ? '+' : '') + d;
+      deltaTd.className = p.lastResult.win ? 'win' : 'loss';
+    } else {
+      deltaTd.textContent = '-';
+    }
+
+    const avgTd = document.createElement('td');
+    avgTd.textContent = p.lastResult ? Number(p.lastResult.avgOthers).toFixed(2) : '-';
+
+    tr.appendChild(nameTd);
+    tr.appendChild(balTd);
+    tr.appendChild(lastBetTd);
+    tr.appendChild(deltaTd);
+    tr.appendChild(avgTd);
+
+    playersBody.appendChild(tr);
+  });
+}
+
+// Chart update using balanceHistory and roundLabels
+function redrawChart() {
+  const datasets = Object.entries(balanceHistory).map(([id, history]) => {
+    if (!colorMap[id]) colorMap[id] = randColorForId(id);
+    return {
+      label: history._name || id,
+      data: history.slice(), // copy
+      borderColor: colorMap[id],
+      backgroundColor: colorMap[id],
+      fill: false,
+      tension: 0.2,
+      spanGaps: true,
+    };
   });
 
+  balanceChart.data.labels = roundLabels.slice();
+  balanceChart.data.datasets = datasets;
+  balanceChart.update();
+}
 
-    // Warnings
-    socket.on('warning', msg => {
-      document.getElementById('warning').textContent = msg || '';
-    });
+/* Debug: print outgoing timer events */
+function sendTimer(val) {
+  console.log(`[Client Debug] sending timer=${val}`);
+  socket.emit('setTimer', { roomId, timer: val });
+}
 
-    // Timer updates (shows initial and each tick, including 1-second rounds)
-    socket.on('timer', t => {
-      document.getElementById('timer').textContent = Number(t).toFixed(1);
-    });
+/* Join with default values */
+let name = 'Player_' + Math.floor(Math.random()*1000);
+nameInput.value = name;
+betVal.textContent = slider.value;
 
-    // Players table updates
-    socket.on('playersUpdate', players => {
-      const tbody = document.getElementById('playersBody');
-      tbody.innerHTML = '';
-      Object.entries(players).forEach(([id, p]) => {
-        const tr = document.createElement('tr');
+// emit join (startingBet from slider)
+socket.emit('joinRoom', { roomId, name, startingBet: parseFloat(slider.value) });
 
-        const nameTd = document.createElement('td');
-        nameTd.textContent = p.name;
+// name changes
+nameInput.addEventListener('input', () => {
+  name = nameInput.value;
+  socket.emit('setName', { roomId, name });
+});
 
-        const balTd = document.createElement('td');
-        // Round to 2 decimals for nicer view
-        const roundedBal = Math.round((p.balance + Number.EPSILON) * 100) / 100;
-        balTd.textContent = roundedBal;
+// bet slider
+slider.addEventListener('input', () => {
+  const v = parseInt(slider.value, 10);
+  betVal.textContent = v;
+  console.log(`[Client Debug] sending bet=${v}`);
+  socket.emit('setBet', { roomId, bet: v });
+});
 
-        const lastBetTd = document.createElement('td');
-        lastBetTd.textContent = p.lastResult ? p.lastResult.lastBet : '-';
+// timer select change
+timerSelect.addEventListener('change', () => {
+  const v = parseFloat(timerSelect.value);
+  sendTimer(v);
+});
 
-        const deltaTd = document.createElement('td');
-        if (p.lastResult) {
-          const delta = Math.round((p.lastResult.delta + Number.EPSILON) * 100) / 100;
-          deltaTd.textContent = (delta >= 0 ? '+' : '') + delta;
-          deltaTd.className = p.lastResult.win ? 'win' : 'loss';
-        } else {
-          deltaTd.textContent = '-';
-        }
+// handle allowedTimers (server authoritative)
+socket.on('allowedTimers', (payload) => {
+  // payload: { options: [...], current: number }
+  const options = payload && payload.options ? payload.options : [0.1,1,10,60];
+  const current = payload && typeof payload.current !== 'undefined' ? payload.current : options[1];
 
-        tr.appendChild(nameTd);
-        tr.appendChild(balTd);
-        tr.appendChild(lastBetTd);
-        tr.appendChild(deltaTd);
-        tbody.appendChild(tr);
-      });
-    });
-  </script>
+  // populate select
+  timerSelect.innerHTML = '';
+  options.forEach(opt => {
+    const optEl = document.createElement('option');
+    // display with 1 decimal if small or .0 for integers for clarity
+    optEl.value = opt;
+    optEl.textContent = (opt % 1 === 0) ? `${opt}s` : `${opt}s`;
+    timerSelect.appendChild(optEl);
+  });
+
+  // pick current if allowed, else first option
+  const pick = options.find(x => Math.abs(x - current) < 1e-6) ?? options[1];
+  timerSelect.value = pick;
+  // inform server of selected (so server gets a setTimer event)
+  sendTimer(parseFloat(timerSelect.value));
+  console.log('[Client Debug] allowedTimers received', payload);
+});
+
+// warning
+socket.on('warning', msg => {
+  warningEl.textContent = msg || '';
+});
+
+// timer ticks (format with 1 decimal, but show two decimals for <1)
+socket.on('timer', t => {
+  const tv = Number(t);
+  if (!Number.isFinite(tv)) {
+    timerEl.textContent = '-';
+    return;
+  }
+  timerEl.textContent = (tv < 1 ? tv.toFixed(2) : tv.toFixed(1));
+});
+
+// playersUpdate: update table (non-secret info)
+socket.on('playersUpdate', players => {
+  // annotate history name if not present
+  Object.entries(players).forEach(([id,p])=>{
+    if (!balanceHistory[id]) {
+      balanceHistory[id] = [];
+      balanceHistory[id]._name = p.name || id;
+      colorMap[id] = randColorForId(id);
+    } else {
+      // update stored name for chart label changes
+      balanceHistory[id]._name = p.name || id;
+    }
+  });
+
+  updatePlayersTable(players);
+});
+
+// roundResult: update table and chart histories
+socket.on('roundResult', (data) => {
+  // data.players keyed by socket id; includes lastResult and balance
+  const players = data.players || {};
+  const roundIndex = data.roundIndex || (roundLabels.length ? (roundLabels[roundLabels.length-1]+1) : 1);
+
+  // push round label
+  roundLabels.push(`R${roundIndex}`);
+  if (roundLabels.length > MAX_HISTORY) roundLabels.shift();
+
+  // update histories for each player present
+  Object.entries(players).forEach(([id, p]) => {
+    if (!balanceHistory[id]) {
+      balanceHistory[id] = [];
+      colorMap[id] = randColorForId(id);
+    }
+    balanceHistory[id].push(Math.round((p.balance + Number.EPSILON) * 100) / 100);
+    // attach name for label
+    balanceHistory[id]._name = p.name || id;
+    if (balanceHistory[id].length > MAX_HISTORY) balanceHistory[id].shift();
+  });
+
+  // prune histories of players no longer present
+  const presentIds = Object.keys(players);
+  for (const id of Object.keys(balanceHistory)) {
+    if (!presentIds.includes(id)) {
+      // keep the history but don't remove — optional: remove if you prefer
+      // balanceHistory[id] = balanceHistory[id]; // keep
+    }
+  }
+
+  // redraw players table & chart
+  updatePlayersTable(players);
+  redrawChart();
+
+  console.log('[Round Debug] roundResult received', data);
+});
+
+</script>
 </body>
 </html>
