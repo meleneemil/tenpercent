@@ -116,6 +116,7 @@ let balanceChart = new Chart(ctx, {
   data: { labels: [], datasets: [] },
   options: {
     responsive: true,
+    animation: {duration: 0},
     plugins: { legend: { display: true, position: 'bottom' } },
     scales: { y: { beginAtZero: true } }
   }
