@@ -153,19 +153,28 @@ io.on('connection', (socket) => {
   });
 
   
-// server.js - improved setTimer handler
 socket.on('setTimer', ({ roomId, timer }) => {
   const room = rooms[roomId];
   if (!room) return;
 
-  // parseFloat to keep decimals, and explicit NaN check
+  let raw = timer;
   let t = parseFloat(timer);
-  if (!Number.isFinite(t)) t = 10;        // default if parsing failed
-  t = Math.max(0.1, Math.min(60, t));     // clamp between 0.1 and 60
+
+  console.log(`[Timer Debug] raw input=${raw} | parsed=${t}`);
+
+  if (!Number.isFinite(t)) {
+    console.log(`[Timer Debug] Non-numeric timer received, defaulting to 10`);
+    t = 10;
+  }
+
+  t = Math.max(0.1, Math.min(60, t));
+  console.log(`[Timer Debug] clamped=${t}`);
 
   room.roundTimer = t;
 
-  // ensure countdown respects new timer immediately if appropriate
+  // (optional) show which room changed
+  console.log(`[Timer Debug] Room ${roomId} new roundTimer=${room.roundTimer}`);
+
   ensureRoundState(roomId);
 });
 
