@@ -32,28 +32,19 @@ function startCountdown(roomId) {
   let timeLeft = room.roundTimer;
   io.to(roomId).emit('timer', Number(timeLeft.toFixed(2)));
 
-  const tickMs = 100; // internal 100ms tick
-  let emitAccumulator = 0;
-
-  console.log(`[Timer Debug] startCountdown room=${roomId} timer=${room.roundTimer}`);
-
+  const tickMs = 50; // internal tick
   room.roundInterval = setInterval(() => {
-    timeLeft = Math.max(0, +(timeLeft - tickMs / 1000).toFixed(2));
-    emitAccumulator += tickMs;
-
-    // emit every 200ms
-    if (emitAccumulator >= 200) {
-      io.to(roomId).emit('timer', Number(timeLeft.toFixed(2)));
-      emitAccumulator = 0;
-    }
-
+    timeLeft = +(timeLeft - tickMs / 1000).toFixed(2);
     if (timeLeft <= 0) {
       clearInterval(room.roundInterval);
       room.roundInterval = null;
       runRound(roomId);
+      return;
     }
+    io.to(roomId).emit('timer', Number(timeLeft.toFixed(2)));
   }, tickMs);
 }
+
 
 // Ensure room state: warnings or countdown
 function ensureRoundState(roomId) {
