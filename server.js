@@ -156,8 +156,9 @@ io.on('connection', (socket) => {
   socket.on('setTimer', ({ roomId, timer }) => {
     const room = rooms[roomId];
     if (!room) return;
-    const t = Math.max(1, Math.min(60, parseInt(timer, 10) || 10));
+    const t = Math.max(0.1, Math.min(60, parseFloat(timer) || 10));
     room.roundTimer = t;
+
 
     // If a round is not running and enough players exist, (re)start immediately to reflect new timer
     ensureRoundState(roomId);
