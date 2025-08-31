@@ -109,9 +109,11 @@
 
     // Timer changes
     timerInput.addEventListener('input', () => {
-      const val = parseInt(timerInput.value, 10);
-      socket.emit('setTimer', { roomId, timer: val });
-    });
+  const val = parseFloat(timerInput.value);
+  console.log(`[Client Debug] sending timer=${val}`);
+  socket.emit('setTimer', { roomId, timer: val });
+  });
+
 
     // Warnings
     socket.on('warning', msg => {
