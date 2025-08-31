@@ -226,27 +226,19 @@ timerSelect.addEventListener('change', () => {
 
 // handle allowedTimers (server authoritative)
 socket.on('allowedTimers', (payload) => {
-  // payload: { options: [...], current: number }
-  const options = payload && payload.options ? payload.options : [0.1,1,10,60];
-  const current = payload && typeof payload.current !== 'undefined' ? payload.current : options[1];
-
-  // populate select
+  const options = payload.options || [0.1,1,10,60];
+  const current = payload.current || 10;
   timerSelect.innerHTML = '';
   options.forEach(opt => {
     const optEl = document.createElement('option');
-    // display with 1 decimal if small or .0 for integers for clarity
     optEl.value = opt;
-    optEl.textContent = (opt % 1 === 0) ? `${opt}s` : `${opt}s`;
+    optEl.textContent = (opt % 1 === 0 ? `${opt}s` : `${opt}s`);
     timerSelect.appendChild(optEl);
   });
-
-  // pick current if allowed, else first option
-  const pick = options.find(x => Math.abs(x - current) < 1e-6) ?? options[1];
-  timerSelect.value = pick;
-  // inform server of selected (so server gets a setTimer event)
-  sendTimer(parseFloat(timerSelect.value));
+  timerSelect.value = options.find(x => Math.abs(x - current) < 1e-6) || options[0];
   console.log('[Client Debug] allowedTimers received', payload);
 });
+
 
 // warning
 socket.on('warning', msg => {
