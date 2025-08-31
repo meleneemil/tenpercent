@@ -23,24 +23,24 @@ function pickRandomId(obj) {
 function startCountdown(roomId) {
   const room = rooms[roomId];
   if (!room) return;
-
-  // If a timer is already running, do nothing
   if (room.roundInterval) return;
 
-  let timeLeft = room.roundTimer;
-  io.to(roomId).emit('timer', timeLeft); // emit the initial value immediately
+  let timeLeft = room.roundTimer; // float allowed
+  io.to(roomId).emit('timer', timeLeft);
 
+  const tickSize = 100; // 100 ms
   room.roundInterval = setInterval(() => {
-    timeLeft -= 1;
+    timeLeft = Math.max(0, +(timeLeft - tickSize / 1000).toFixed(2));
     io.to(roomId).emit('timer', timeLeft);
 
     if (timeLeft <= 0) {
       clearInterval(room.roundInterval);
       room.roundInterval = null;
-      runRound(roomId); // process results, then ensure next round state
+      runRound(roomId);
     }
-  }, 1000);
+  }, tickSize);
 }
+
 
 // Process a round: compute pot, loser, payouts; then decide what to do next
 function runRound(roomId) {
