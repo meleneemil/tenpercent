@@ -3,113 +3,159 @@
 <head>
   <meta charset="UTF-8">
   <title>TenPercent</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 10px; max-width: 480px; margin: auto; }
-    .win { color: green; }
-    .loss { color: red; }
-    table { border-collapse: collapse; width: 100%; table-layout: fixed; word-wrap: break-word; }
-    th, td { border: 1px solid #aaa; padding: 4px 6px; text-align: center; }
+    :root { --pad: 10px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: var(--pad); }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: var(--pad); margin-bottom: var(--pad); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .col { flex: 1 1 160px; min-width: 160px; }
+    label { font-size: 14px; display: block; margin-bottom: 6px; }
+    input[type=text], input[type=number] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
     input[type=range] { width: 100%; }
-    input[type=number], input[type=text] { width: 100%; box-sizing: border-box; margin-top: 2px; margin-bottom: 6px; }
+    .pill { display:inline-block; padding: 3px 8px; border-radius:999px; font-size:12px; border:1px solid #ddd; }
+    #warning { color: #b57400; font-weight: 600; min-height: 1.2em; }
+    #timer { font-weight: 700; }
+    .win { color: #0a8f00; font-weight: 600; }
+    .loss { color: #c40000; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    th, td { border: 1px solid #e0e0e0; padding: 6px; text-align: center; font-size: 14px; }
+    thead th { position: sticky; top: 0; background: #fafafa; z-index: 1; }
+    .table-wrap { max-height: 50vh; overflow: auto; border: 1px solid #eaeaea; border-radius: 10px; }
+    @media (max-width: 480px) {
+      th, td { font-size: 13px; padding: 5px; }
+      h1 { font-size: 20px; }
+    }
   </style>
 </head>
 <body>
   <h1>TenPercent</h1>
 
-  <label>Player Name:<br> <input type="text" id="nameInput"></label>
+  <div class="card">
+    <div class="row">
+      <div class="col">
+        <label>Player Name
+          <input type="text" id="nameInput" placeholder="Your name" />
+        </label>
+      </div>
+      <div class="col">
+        <label>Bet: <span class="pill" id="betVal">5</span>
+          <input type="range" min="1" max="10" value="5" id="betSlider">
+        </label>
+      </div>
+      <div class="col">
+        <label>Round Timer (seconds)
+          <input type="number" min="1" max="60" value="10" id="timerInput">
+        </label>
+      </div>
+    </div>
 
-  <label>Bet: <span id="betVal">5</span><br>
-  <input type="range" min="1" max="10" value="5" id="betSlider"></label>
+    <div class="row">
+      <div class="col">
+        <div>Timer: <span id="timer">10</span>s</div>
+        <div id="warning"></div>
+      </div>
+    </div>
+  </div>
 
-  <label>Round Timer (seconds):<br> <input type="number" min="1" max="60" value="10" id="timerInput"></label>
-
-  <p id="warning" style="color: orange; font-weight: bold;"></p>
-  <p>Timer: <span id="timer">10</span></p>
-
-  <h2>Players</h2>
-  <div style="overflow-x:auto;">
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Balance</th>
-          <th>Last Bet</th>
-          <th>Last Round Gain/Loss</th>
-        </tr>
-      </thead>
-      <tbody id="playersBody"></tbody>
-    </table>
+  <div class="card">
+    <h3 style="margin-top:0;">Players</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Balance</th>
+            <th>Last Bet</th>
+            <th>Gain/Loss (last round)</th>
+          </tr>
+        </thead>
+        <tbody id="playersBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <script>
     const socket = io();
     const roomId = 'room1';
-    let name = 'Player_' + Math.floor(Math.random()*1000);
 
+    // Controls
+    const nameInput = document.getElementById('nameInput');
     const slider = document.getElementById('betSlider');
     const betVal = document.getElementById('betVal');
+    const timerInput = document.getElementById('timerInput');
 
-    // Join room with initial slider value
-    socket.emit('joinRoom', { roomId, name, startingBet: parseInt(slider.value) });
-
-    // Name input
-    const nameInput = document.getElementById('nameInput');
+    // Default random name
+    let name = 'Player_' + Math.floor(Math.random()*1000);
     nameInput.value = name;
+
+    // Join with initial slider value as starting bet
+    socket.emit('joinRoom', { roomId, name, startingBet: parseInt(slider.value, 10) });
+
+    // Name changes
     nameInput.addEventListener('input', () => {
       name = nameInput.value;
       socket.emit('setName', { roomId, name });
     });
 
-    // Bet slider
+    // Bet changes
     slider.addEventListener('input', () => {
-      betVal.textContent = slider.value;
-      socket.emit('setBet', { roomId, bet: parseInt(slider.value) });
+      const v = parseInt(slider.value, 10);
+      betVal.textContent = v;
+      socket.emit('setBet', { roomId, bet: v });
     });
 
-    // Timer input
-    const timerInput = document.getElementById('timerInput');
+    // Timer changes
     timerInput.addEventListener('input', () => {
-      const val = parseInt(timerInput.value);
+      const val = parseInt(timerInput.value, 10);
       socket.emit('setTimer', { roomId, timer: val });
     });
 
     // Warnings
     socket.on('warning', msg => {
-      document.getElementById('warning').textContent = msg;
+      document.getElementById('warning').textContent = msg || '';
     });
 
-    // Timer update
+    // Timer updates (shows initial and each tick, including 1-second rounds)
     socket.on('timer', t => {
       document.getElementById('timer').textContent = t;
-      document.getElementById('warning').textContent = '';
     });
 
-    // Players table update
+    // Players table updates
     socket.on('playersUpdate', players => {
       const tbody = document.getElementById('playersBody');
       tbody.innerHTML = '';
-      for (const [id, p] of Object.entries(players)) {
+      Object.entries(players).forEach(([id, p]) => {
         const tr = document.createElement('tr');
 
-        const gainCell = document.createElement('td');
-        if(p.lastResult) {
-          gainCell.textContent = (p.lastResult.amount >= 0 ? '+' : '') + p.lastResult.amount;
-          gainCell.className = p.lastResult.win ? 'win' : 'loss';
+        const nameTd = document.createElement('td');
+        nameTd.textContent = p.name;
+
+        const balTd = document.createElement('td');
+        // Round to 2 decimals for nicer view
+        const roundedBal = Math.round((p.balance + Number.EPSILON) * 100) / 100;
+        balTd.textContent = roundedBal;
+
+        const lastBetTd = document.createElement('td');
+        lastBetTd.textContent = p.lastResult ? p.lastResult.lastBet : '-';
+
+        const deltaTd = document.createElement('td');
+        if (p.lastResult) {
+          const delta = Math.round((p.lastResult.delta + Number.EPSILON) * 100) / 100;
+          deltaTd.textContent = (delta >= 0 ? '+' : '') + delta;
+          deltaTd.className = p.lastResult.win ? 'win' : 'loss';
         } else {
-          gainCell.textContent = '-';
+          deltaTd.textContent = '-';
         }
 
-        const lastBetCell = document.createElement('td');
-        lastBetCell.textContent = p.lastResult ? p.lastResult.lastBet : p.currentBet;
-
-        tr.innerHTML = `<td>${p.name}</td>
-                        <td>${p.balance}</td>`;
-        tr.appendChild(lastBetCell);
-        tr.appendChild(gainCell);
-
+        tr.appendChild(nameTd);
+        tr.appendChild(balTd);
+        tr.appendChild(lastBetTd);
+        tr.appendChild(deltaTd);
         tbody.appendChild(tr);
-      }
+      });
     });
   </script>
 </body>
