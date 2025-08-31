@@ -152,18 +152,23 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('playersUpdate', room.players);
   });
 
-  // Change timer (silly, but per request)
-  socket.on('setTimer', ({ roomId, timer }) => {
-    const room = rooms[roomId];
-    if (!room) return;
-    const t = Math.max(0.1, Math.min(60, parseFloat(timer) || 10));
-    room.roundTimer = t;
-    console.log("Timer set to "+t+" s");
+  
+// server.js - improved setTimer handler
+socket.on('setTimer', ({ roomId, timer }) => {
+  const room = rooms[roomId];
+  if (!room) return;
 
+  // parseFloat to keep decimals, and explicit NaN check
+  let t = parseFloat(timer);
+  if (!Number.isFinite(t)) t = 10;        // default if parsing failed
+  t = Math.max(0.1, Math.min(60, t));     // clamp between 0.1 and 60
 
-    // If a round is not running and enough players exist, (re)start immediately to reflect new timer
-    ensureRoundState(roomId);
-  });
+  room.roundTimer = t;
+
+  // ensure countdown respects new timer immediately if appropriate
+  ensureRoundState(roomId);
+});
+
 
   // Handle disconnect
   socket.on('disconnect', () => {
