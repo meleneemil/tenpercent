@@ -120,7 +120,7 @@
 
     // Timer updates (shows initial and each tick, including 1-second rounds)
     socket.on('timer', t => {
-      document.getElementById('timer').textContent = t;
+      document.getElementById('timer').textContent = Number(t).toFixed(1);
     });
 
     // Players table updates
